@@ -1,7 +1,9 @@
+import { Ai } from '@cloudflare/ai';
 import { handleRequest } from './routes/router';
 
 export interface Env {
-	DISCORD_PUBLIC_KEY: String;
+	AI: Ai;
+	VECTORIZE_INDEX: VectorizeIndex;
 }
 
 export default {
