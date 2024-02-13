@@ -17,22 +17,28 @@ import { AsyncDatabase } from 'promised-sqlite3';
 // }
 // ```
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+// TODO - rigidly respond when no embeddings are found
+// TODO - vectorize back to backend automatically
+
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 let db = undefined;
 
-client.on('ready', async () => {
-  console.log(`Logged in as ${client.user.tag}!`);
-	// await dumpAllSupportThreads(client);
-  db = await AsyncDatabase.open('bot.db');
-  await db.run('CREATE TABLE IF NOT EXISTS answers (id TEXT PRIMARY KEY, answers TEXT)');
-  await db.run('CREATE TABLE IF NOT EXISTS waiting_to_be_vectorized (id TEXT PRIMARY KEY, question TEXT, answers TEXT)');
-  await db.run('CREATE TABLE IF NOT EXISTS failed_to_vectorize (id TEXT PRIMARY KEY, question TEXT, answers TEXT)');
-  // await upsertAllAnswers(db);
+client.on(Events.ClientReady, async () => {
+  try {
+    console.log(`Logged in as ${client.user.tag}!`);
+    // await dumpAllSupportThreads(client);
+    db = await AsyncDatabase.open('bot.db');
+    await db.run('CREATE TABLE IF NOT EXISTS answers (id TEXT PRIMARY KEY, answers TEXT)');
+    await db.run('CREATE TABLE IF NOT EXISTS thread_tracking (id TEXT PRIMARY KEY, questions TEXT, answers TEXT, llm_responded INTEGER DEFAULT 0)');
+    await db.run('CREATE TABLE IF NOT EXISTS failed_to_vectorize (id TEXT PRIMARY KEY, question TEXT, answers TEXT)');
+    // await upsertAllAnswers(db);
+    console.log(`Ready!`);
+  } catch (e) {
+    client.channels.cache.get("1206074512848986162").send(`Unexpected error in ready: ${e}`);
+  }
 });
 
-client.on(Events.ThreadCreate, async (thread) => {
-  const threadAuthor = thread.ownerId;
-  const threadMessages = await thread.messages.fetch({ limit: 100 });
+async function llmRespondToThread(thread, threadAuthor, threadMessages) {
   let question = thread.name + ": ";
   for (const [messageId, message] of threadMessages) {
     if (message.author === threadAuthor) {
@@ -44,15 +50,16 @@ client.on(Events.ThreadCreate, async (thread) => {
     question = question.substring(0, 500);
   }
   // Vectorize the user's question to find similar questions in the past
-  const questionEmbeddingsResp = await fetch("http://127.0.0.1:8787/llm/queryForSimilarQuestions", {
+  const questionEmbeddingsResp = await fetch("https://api.opengoal.dev/llm/queryForSimilarQuestions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "x-api-key": process.env.OPENGOAL_API_KEY,
     },
     body: JSON.stringify({ question: question }),
   });
   const questionEmbeddings = await questionEmbeddingsResp.json();
-  console.log(`questionEmbeddings: ${questionEmbeddings}`);
+  console.log(`LLM: Found embeddings: ${questionEmbeddings}`);
   let context = [];
   if (questionEmbeddings.length > 0) {
     // Use that to form a prompt to try to solve the issue
@@ -67,10 +74,11 @@ client.on(Events.ThreadCreate, async (thread) => {
     }
   }
   // Get the final response
-  const response = await fetch("http://127.0.0.1:8787/llm/promptWithContext", {
+  const response = await fetch("https://api.opengoal.dev/llm/promptWithContext", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "x-api-key": process.env.OPENGOAL_API_KEY,
     },
     body: JSON.stringify({ prompt: question, context: context }),
   });
@@ -85,13 +93,99 @@ client.on(Events.ThreadCreate, async (thread) => {
     }
   }
 
-  answer += "\n\n_This is an automated response based on previously answered questions, there may be inaccuracies or statements that don't adhere to our rules (ie. obtaining ISOs)_\n\n"
+  answer += "\n\n_This is an automated response and there may be inaccuracies or statements that don't adhere to our rules (ie. obtaining ISOs). Don't attempt to reply to this message, the bot will not respond._"
 
   thread.send(answer);
+}
+
+const trustedAnswerers = [
+  "301711731628179457",
+  "115998281317875714",
+  "274327985425743873",
+  "105216251676069888",
+  "149603324671295488",
+  "136657649209966592",
+  "140194315518345216",
+  "534921732608360449",
+  "178908133475876865",
+  "106039163333177344",
+  "126398522361643008"
+]
+
+async function threadMessageHandler(message) {
+  // Check if it's in the channel we care about
+  const channelId = message.channel.parentId;
+  if (channelId !== process.env.HELP_CHANNEL_ID || message.author.id === process.env.BOT_USER_ID) {
+    return;
+  }
+  const threadId = message.channelId;
+  const threadAuthorId = message.channel.ownerId;
+  // grab all the messages and upsert them into the database
+  const threadMessages = await message.channel.messages.fetch({ limit: 100 });
+  // Check if we've done the LLM response yet
+  const row = await db.get("SELECT * FROM thread_tracking WHERE id = ?", [threadId]);
+  if (row === undefined || row.llm_responded === 0) {
+    console.log("Responding to help thread!");
+    // This is also a good spot to check for if the support package has been sent yet, if not
+    // beg the user to provide it.
+    let suppPackageReceived = false;
+    for (const [messageId, message] of threadMessages) {
+      if (message.author.id === threadAuthorId) {
+        for (const [attachmentId, attachment] of message.attachments) {
+          if (attachment.contentType === "application/zip") {
+            suppPackageReceived = true;
+            break;
+          }
+        }
+      }
+    }
+    if (!suppPackageReceived) {
+      message.channel.send("It does not seem like you have included your **support package**. The **support package** contains hardware info, logs, saves and settings that can help identify your issue.\n\nIt can be obtained via the launcher using these steps - https://www.youtube.com/watch?v=5nnl9Av09Zg\n\n_If your question is unrelated to installing or running the game, please ignore this._");
+    }
+    await llmRespondToThread(message.channel, threadAuthorId, threadMessages);
+    if (row === undefined) {
+      await db.run(`INSERT INTO thread_tracking (id, llm_responded) VALUES(?, ?)`, [threadId, 1]);
+    } else {
+      await db.run(`UPDATE thread_tracking SET llm_responded = ? WHERE id = ?`, [1, threadId]);
+    }
+  }
+  let question = [];
+  let answers = [];
+  for (const [messageId, message] of threadMessages) {
+    if (message.author.id === threadAuthorId) {
+      question.push(message.content);
+    } else if (trustedAnswerers.includes(message.author.id)) {
+      answers.push(message.content);
+    }
+  }
+  question.reverse();
+  answers.reverse();
+  await db.run("INSERT OR REPLACE INTO thread_tracking (id, questions, answers, llm_responded) VALUES (?, ?, ?, ?)", [threadId, JSON.stringify(question), JSON.stringify(answers), 1]);
+  console.log("Upserted into thread_tracking - " + threadId);
+}
+
+client.on(Events.MessageCreate, async (message) => {
+  try {
+    await threadMessageHandler(message);
+  } catch (e) {
+    if (process.env.LOG_TO_SERVER === "true") {
+      client.channels.cache.get("1206074512848986162").send(`Unexpected error in messageCreate: ${e}`);
+    } else {
+      console.error(e);
+    }
+  }
 });
 
-client.on(Events.ThreadUpdate, async (thread) => {
-  console.log("TODO - automatically store messages to be used for future training");
-})
+client.on(Events.MessageUpdate, async (message) => {
+  try {
+    await threadMessageHandler(message);
+  } catch (e) {
+    if (process.env.LOG_TO_SERVER === "true") {
+      client.channels.cache.get("1206074512848986162").send(`Unexpected error in messageUpdate: ${e}`);
+    } else {
+      console.error(e);
+    }
+  }
+});
 
 client.login(process.env.DISCORD_TOKEN);
