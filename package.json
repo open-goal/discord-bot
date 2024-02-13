@@ -2,20 +2,14 @@
   "name": "opengoal-discord",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
-    "start": "wrangler dev",
-    "discord-register": "node ./discord-commands.mjs"
+    "dev": "node ./src/index.js"
   },
   "dependencies": {
-    "discord-interactions": "^3.4.0",
-    "itty-router": "^4.0.23"
-  },
-  "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240129.0",
+    "discord.js": "^14.14.1",
     "dotenv": "^16.4.1",
-    "typescript": "^5.0.4",
-    "wrangler": "^3.0.0"
+    "promised-sqlite3": "^2.1.0",
+    "sqlite3": "^5.1.7"
   }
 }
