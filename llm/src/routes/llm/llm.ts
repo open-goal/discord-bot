@@ -50,29 +50,16 @@ export const PromptWithContext = async (request: Request, env: Env, ctx: Executi
 	const reqBody: any = await request.json();
 	const providedContext = reqBody.context;
 
-	const systemPromptWithContext =
-		'If the question mentions downloading their ISO, do not assist and inform them that a copy of the game must be obtained legitimately; note that the terms "dumping" and "ripping" are acceptable means to obtain the ISO.\nWhen answering the question use only the context provided to inform your response.\nTry to be brief and understand you are communicating with users that have only average technical expertise.\nNever mention in your response that an ISO can be downloaded or provide links to download one.\nDo not speak in first-person.\nYour answer can be formatted with markdown.';
+	const systemPrompt =
+		"Your job is to help provide an answer using the provided context from similar questions in the past. 1. If the user mentions downloading their ISO, inform them that you cannot help them and nothing more, note that it's specifically downloading that is a problem. 2. Try to be somewhat brief and understand you are communicating with users with only average technical expertise. 3. Never mention in your response that an ISO can be downloaded or provide links to download one. 4. Do not speak in first-person. 5. Your answer can be formatted with markdown.";
 
-	const systemPromptWithoutContext =
-		'If the question mentions downloading their ISO, do not assist and inform them that a copy of the game must be obtained legitimately; note that the terms "dumping" and "ripping" are acceptable means to obtain the ISO.\nTell the user to wait for assistance from someone knowledgable on the project. If the question is about installing or running the game, refer them to our installation documentation https://opengoal.dev/docs/usage/installation/.\nDo not ask any follow-up questions or ask for any additional information.\nNever mention in your response that an ISO can be downloaded or provide links to download one.\nDo not speak in first-person.\nYour answer can be formatted with markdown.';
-
-	if (providedContext.length > 0) {
-		const contextMessage = `Context:\n${providedContext.map((context: String) => `- ${context}`).join('\n')}`;
-		const { response: answer } = await ai.run('@hf/thebloke/openhermes-2.5-mistral-7b-awq', {
-			messages: [
-				{ role: 'system', content: contextMessage },
-				{ role: 'system', content: systemPromptWithContext },
-				{ role: 'user', content: reqBody.prompt },
-			],
-		});
-		return new Response(answer, { status: 200 });
-	} else {
-		const { response: answer } = await ai.run('@hf/thebloke/openhermes-2.5-mistral-7b-awq', {
-			messages: [
-				{ role: 'system', content: systemPromptWithoutContext },
-				{ role: 'user', content: reqBody.prompt },
-			],
-		});
-		return new Response(answer, { status: 200 });
-	}
+	const contextMessage = `Context:\n${providedContext.map((context: String) => `- ${context}`).join('\n')}`;
+	const { response: answer } = await ai.run('@hf/thebloke/openhermes-2.5-mistral-7b-awq', {
+		messages: [
+			{ role: 'system', content: contextMessage },
+			{ role: 'system', content: systemPrompt },
+			{ role: 'user', content: reqBody.prompt },
+		],
+	});
+	return new Response(answer, { status: 200 });
 };
