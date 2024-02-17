@@ -51,7 +51,7 @@ export const PromptWithContext = async (request: Request, env: Env, ctx: Executi
 	const providedContext = reqBody.context;
 
 	const systemPrompt =
-		"Your job is to help provide an answer using the provided context from similar questions in the past. 1. If the user mentions downloading their ISO, inform them that you cannot help them and nothing more, note that it's specifically downloading that is a problem. 2. Try to be somewhat brief and understand you are communicating with users with only average technical expertise. 3. Never mention in your response that an ISO can be downloaded or provide links to download one. 4. Do not speak in first-person. 5. Your answer can be formatted with markdown.";
+		"Your job is to help provide an answer using the provided context from similar questions in the past. 1. If the user mentions downloading their ISO, inform them that you cannot help them and nothing more, note that it's specifically downloading that is not allowed. 2. Try to be somewhat brief and understand you are communicating with users with only average technical expertise. 3. Never mention in your response that an ISO can be downloaded or provide links to download one. 4. Do not speak in first-person. 5. Your answer can be formatted with markdown.";
 
 	const contextMessage = `Context:\n${providedContext.map((context: String) => `- ${context}`).join('\n')}`;
 	const { response: answer } = await ai.run('@hf/thebloke/openhermes-2.5-mistral-7b-awq', {

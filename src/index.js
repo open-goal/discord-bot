@@ -86,11 +86,10 @@ async function llmRespondToThread(thread, threadAuthor, threadMessages) {
     for (const embedding of questionEmbeddings) {
       answer += `- https://discord.com/channels/756287461377703987/${embedding}\n`;
     }
+    answer += "\n\n_This is an automated response and there may be inaccuracies or statements that don't adhere to our rules (ie. obtaining ISOs). Don't attempt to reply to this message, the bot will not respond._"
   } else {
     answer = "Your question does not seem to be similar to any questions in the past, so no automated help could be provided. Please wait for someone to respond when they are free.\n\nIf your question was related to issues with the game, you might find our installation documentation helpful https://opengoal.dev/docs/usage/installation/";
   }
-
-  answer += "\n\n_This is an automated response and there may be inaccuracies or statements that don't adhere to our rules (ie. obtaining ISOs). Don't attempt to reply to this message, the bot will not respond._"
 
   thread.send(answer);
 }
@@ -109,6 +108,10 @@ const trustedAnswerers = [
   "126398522361643008"
 ]
 
+function isTimestampOlderThanDay(unixTimestamp) {
+  return (Date.now() - unixTimestamp) > (24 * 60 * 60 * 1000);
+}
+
 async function threadMessageHandler(message) {
   // Check if it's in the channel we care about
   const channelId = message.channel.parentId;
@@ -119,31 +122,33 @@ async function threadMessageHandler(message) {
   const threadAuthorId = message.channel.ownerId;
   // grab all the messages and upsert them into the database
   const threadMessages = await message.channel.messages.fetch({ limit: 100 });
-  // Check if we've done the LLM response yet
-  const row = await db.get("SELECT * FROM thread_tracking WHERE id = ?", [threadId]);
-  if (row === undefined || row.llm_responded === 0) {
-    console.log("Responding to help thread!");
-    // This is also a good spot to check for if the support package has been sent yet, if not
-    // beg the user to provide it.
-    let suppPackageReceived = false;
-    for (const [messageId, message] of threadMessages) {
-      if (message.author.id === threadAuthorId) {
-        for (const [attachmentId, attachment] of message.attachments) {
-          if (attachment.contentType === "application/zip") {
-            suppPackageReceived = true;
-            break;
+  // Check if we've done the LLM response yet, don't care about necro'd threads that
+  // we may not have recorded to the DB yet
+  if (!isTimestampOlderThanDay(message.channel.createdTimestamp)) {
+    const row = await db.get("SELECT * FROM thread_tracking WHERE id = ?", [threadId]);
+    if (row === undefined || row.llm_responded === 0) {
+      // This is also a good spot to check for if the support package has been sent yet, if not
+      // beg the user to provide it.
+      let suppPackageReceived = false;
+      for (const [messageId, message] of threadMessages) {
+        if (message.author.id === threadAuthorId) {
+          for (const [attachmentId, attachment] of message.attachments) {
+            if (attachment.contentType === "application/zip") {
+              suppPackageReceived = true;
+              break;
+            }
           }
         }
       }
-    }
-    if (!suppPackageReceived) {
-      message.channel.send("It does not seem like you have included your **support package**. The **support package** contains hardware info, logs, saves and settings that can help identify your issue.\n\nIt can be obtained via the launcher using these steps - https://www.youtube.com/watch?v=5nnl9Av09Zg\n\n_If your question is unrelated to installing or running the game, please ignore this._");
-    }
-    await llmRespondToThread(message.channel, threadAuthorId, threadMessages);
-    if (row === undefined) {
-      await db.run(`INSERT INTO thread_tracking (id, llm_responded) VALUES(?, ?)`, [threadId, 1]);
-    } else {
-      await db.run(`UPDATE thread_tracking SET llm_responded = ? WHERE id = ?`, [1, threadId]);
+      if (!suppPackageReceived) {
+        message.channel.send("It does not seem like you have included your **support package**. The **support package** contains hardware info, logs, saves and settings that can help resolve your issue.\n\nIt can be obtained via the launcher using these steps - https://www.youtube.com/watch?v=5nnl9Av09Zg\n\n_If your question is unrelated to installing or running the game, please ignore this._");
+      }
+      await llmRespondToThread(message.channel, threadAuthorId, threadMessages);
+      if (row === undefined) {
+        await db.run(`INSERT INTO thread_tracking (id, llm_responded) VALUES(?, ?)`, [threadId, 1]);
+      } else {
+        await db.run(`UPDATE thread_tracking SET llm_responded = ? WHERE id = ?`, [1, threadId]);
+      }
     }
   }
   let question = [];
