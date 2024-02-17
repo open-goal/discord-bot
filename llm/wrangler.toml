@@ -1,0 +1,15 @@
+name = "opengoal-qa-llm"
+main = "src/index.ts"
+compatibility_date = "2024-01-29"
+account_id = "4a18882277c5585fd9d01d980b2b5a6f"
+workers_dev = false
+routes = [
+	{ pattern = "api.opengoal.dev/*", zone_id = "4f092f19a663d58d93eef22952559120" }
+]
+
+[ai]
+binding = "AI"
+
+[[vectorize]]
+binding = "VECTORIZE_INDEX" # available within your Worker on env.VECTORIZE_INDEX
+index_name = "opengoal-qa-index"

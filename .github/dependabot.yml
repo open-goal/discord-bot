@@ -1,0 +1,24 @@
+# Set update schedule for GitHub Actions
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      # Check for updates to GitHub Actions every week
+      interval: "monthly"
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      bot-dependencies:
+        patterns:
+          - "*"
+  - package-ecosystem: "npm"
+    directory: "/llm"
+    schedule:
+      interval: "monthly"
+    groups:
+      llm-dependencies:
+        patterns:
+          - "*"

@@ -1,4 +1,0 @@
-name = "opengoal-discord"
-main = "src/index.ts"
-compatibility_date = "2024-01-29"
-account_id = "4a18882277c5585fd9d01d980b2b5a6f"
