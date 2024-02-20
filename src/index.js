@@ -72,21 +72,28 @@ async function llmRespondToThread(thread, threadAuthor, threadMessages) {
       context.push(embedding.answers);
     }
     // Get the final response
-    const response = await fetch("https://api.opengoal.dev/llm/promptWithContext", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.OPENGOAL_API_KEY,
-      },
-      body: JSON.stringify({ prompt: question, context: context }),
-    });
-    answer = await response.text();
-    answer += "\n\n";
-    answer += "_The above response was based on the following previous similar questions:_\n";
+    // TODO - disabled as I'm not impressed with the accuracy of responses, probably not enough training
+    // and/or the quality of the trained responses is garbage
+    // Just point to similar questions for now.
+    answer = "Your question appears to be similar to the following questions in the past, check to see if they may help you while you wait for a response:\n";
     for (const embedding of questionEmbeddings) {
       answer += `- https://discord.com/channels/756287461377703987/${embedding}\n`;
     }
-    answer += "\n\n_This is an automated response and there may be inaccuracies or statements that don't adhere to our rules (ie. obtaining ISOs). Don't attempt to reply to this message, the bot will not respond._"
+    // const response = await fetch("https://api.opengoal.dev/llm/promptWithContext", {
+    //   method: "POST",
+    //   headers: {
+    //     "Content-Type": "application/json",
+    //     "x-api-key": process.env.OPENGOAL_API_KEY,
+    //   },
+    //   body: JSON.stringify({ prompt: question, context: context }),
+    // });
+    // answer = await response.text();
+    // answer += "\n\n";
+    // answer += "_The above response was based on the following previous similar questions:_\n";
+    // for (const embedding of questionEmbeddings) {
+    //   answer += `- https://discord.com/channels/756287461377703987/${embedding}\n`;
+    // }
+    // answer += "\n\n_This is an automated response and there may be inaccuracies or statements that don't adhere to our rules (ie. obtaining ISOs). Don't attempt to reply to this message, the bot will not respond._"
   } else {
     answer = "Your question does not seem to be similar to any questions in the past, so no automated help could be provided. Please wait for someone to respond when they are free.\n\nIf your question was related to issues with the game, you might find our installation documentation helpful https://opengoal.dev/docs/usage/installation/";
   }
