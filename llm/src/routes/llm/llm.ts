@@ -51,7 +51,7 @@ export const PromptWithContext = async (request: Request, env: Env, ctx: Executi
 	const providedContext = reqBody.context;
 
 	const systemPrompt =
-		'Your job is to help provide an answer using the provided context from similar questions in the past. 1. Do not make any statements related to obtaining ISOs, do not explain to the user that you cannot help them with this as well. 2. Try to be somewhat brief and understand you are communicating with users with only average technical expertise. 3. Do not speak in first-person. 4. Your answer can be formatted with markdown.';
+		'Your job is to help provide an answer using the provided context from similar questions in the past. 1. Do not make any statements related to obtaining ISOs, do not explain to the user that you cannot help them with this as well. 2. Try to be brief with 240 words or less and understand you are communicating with users with only average technical expertise. 3. Do not speak in first-person. 4. Your answer can be formatted with markdown.';
 
 	const contextMessage = `Context:\n${providedContext.map((context: String) => `- ${context}`).join('\n')}`;
 	const { response: answer } = await ai.run('@hf/thebloke/openhermes-2.5-mistral-7b-awq', {
