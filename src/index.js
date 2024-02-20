@@ -115,8 +115,8 @@ const trustedAnswerers = [
   "126398522361643008"
 ]
 
-function isTimestampOlderThanDay(unixTimestamp) {
-  return (Date.now() - unixTimestamp) > (24 * 60 * 60 * 1000);
+function isTimestampOlderThanHour(unixTimestamp) {
+  return (Date.now() - unixTimestamp) > (60 * 60 * 1000);
 }
 
 async function threadMessageHandler(message) {
@@ -131,7 +131,7 @@ async function threadMessageHandler(message) {
   const threadMessages = await message.channel.messages.fetch({ limit: 100 });
   // Check if we've done the LLM response yet, don't care about necro'd threads that
   // we may not have recorded to the DB yet
-  if (!isTimestampOlderThanDay(message.channel.createdTimestamp)) {
+  if (!isTimestampOlderThanHour(message.channel.createdTimestamp)) {
     const row = await db.get("SELECT * FROM thread_tracking WHERE id = ?", [threadId]);
     if (row === undefined || row.llm_responded === 0) {
       // This is also a good spot to check for if the support package has been sent yet, if not
